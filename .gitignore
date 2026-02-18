@@ -1,0 +1,32 @@
+#python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+build/
+dist/
+
+Thumbs.db
+# Jupyter Notebook
+**/.ipynb_checkpoints/
+# Logs and staging data
+data/logs/
+*.logs
+
+data/staging/
+
+temp/
+# Data directories
+minio-data/
+spark-data/
+docker-data/
+# Spark
+spark-warehouse/
+*.crc
+
+*.swp
+*.bak
+
+
