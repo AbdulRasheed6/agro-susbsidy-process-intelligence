@@ -1,0 +1,77 @@
+services:
+  # MinIo Object Storage
+
+  minio:
+    image: minio/minio:latest
+    container_name: lakehouse-minio
+    restart: always
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"   # API
+      - "${MINIO_CONSOLE_PORT:-9001}:9001" # Console UI
+
+    environment:
+      MINIO_ROOT_USER: "${MINIO_ROOT_USER}"
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD}"
+
+    volumes:
+      - ./data/minio-data:/data # this indicates that any data uploaded to minio will be stored in the /data directory
+    command: server /data --console-address ":9001" # this provides a separate port for manain buckets and uploadin and download objects (9001)
+
+    networks:
+      - lakehouse-net
+
+  # Spark + jupyter
+  spark:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: lakehouse-spark
+    restart: unless-stopped
+    depends_on:
+      - minio
+    ports:
+      - "4040:4040"   #Spark UI
+      - "8888:8888"  #jupyter lab
+
+    environment:
+      #spark mode
+      SPARK_MODE: "local[*]"
+
+      # Minio Connection
+      MINIO_ENDPOINT: "http://minio:9000"
+
+      #Required for s3A
+      AWS_ACCESS_KEY_ID: "${MINIO_ROOT_USER}"
+      AWS_SECRET_ACCESS_KEY: "${MINIO_ROOT_PASSWORD}"
+
+
+    volumes:
+      # Application code
+      - ./src:/opt/spark-app/src
+
+      # local data areas
+      - ./data/staging:/opt/spark-app/data/staging
+      - ./data/logs:/opt/spark-app/data/logs
+      - ./data/spark-tmp:/tmp/spark
+
+      # Notebooks
+      - ./notebooks:/opt/spark-app/notebooks
+
+      # Temp folder
+      - ./temp:/temp/spark
+
+    networks:
+      - lakehouse-net
+
+    command: >
+      bash -c "
+      jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root"
+    
+
+networks:
+  lakehouse-net:
+    driver: bridge
+
+    
+
+    
