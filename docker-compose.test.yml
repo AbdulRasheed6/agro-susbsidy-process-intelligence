@@ -1,0 +1,67 @@
+services:
+  
+
+  spark-test-admin:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    
+    container_name: spark-test-admin
+
+    env_file:
+      - ./env/.env.admin
+
+      
+
+    environment:
+      PIPELINE_STAGE:  admin
+
+    volumes:
+      - ./src:/opt/spark-app/src
+      - ./data/logs/:/opt/spark-app/data/logs
+      - ./env:/opt/spark-app/env  
+
+
+    command: python3 src/tests/test_admin_minio.py
+
+    networks:
+      - lakehouse-net
+
+
+    
+  # ingestion stage
+
+  spark-test-ingestion:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+
+    container_name:   spark-test-ingestion
+
+    hostname: spark-test-ingestion
+    
+    env_file:
+      - ./env/.env.ingestion
+
+    environment:
+      PIPELINE_STAGE: ingestion
+      SPARK_DRIVER_HOST: spark-test-ingestion
+
+    volumes:
+      - ./src:/opt/spark-app/src
+      - ./data/logs/:/opt/spark-app/data/logs  
+      - ./env:/opt/spark-app/env
+
+    command: bash -c "python3 src/tests/test_ingestion_minio.py; tail -f /dev/null"
+
+    networks:
+      lakehouse-net:
+        aliases:
+          - spark-test-ingestion
+
+
+networks:
+  lakehouse-net:
+     external: true
+     name: lakehouse-net

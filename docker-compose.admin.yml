@@ -1,0 +1,31 @@
+version: "3.8"
+services:
+
+   admin-job:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: admin-job
+    env_file:
+      - ./env/.env.admin
+
+    environment:
+      PIPELINE_STAGE: admin 
+
+    volumes:
+      - ./src:/opt/spark-app/src
+      - ./configs:/opt/spark-app/configs
+      - ./data/logs/:/opt/spark-app/data/logs  
+      - ./scripts:/opt/spark-app/scripts  
+      - ./env:/opt/spark-app/env
+
+    working_dir: /opt/spark-app
+
+    networks:
+      - lakehouse-net
+
+    command:  bash 
+
+networks:
+  lakehouse-net:
+    external: true

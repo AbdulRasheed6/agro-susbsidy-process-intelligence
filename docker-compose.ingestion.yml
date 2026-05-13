@@ -1,0 +1,44 @@
+
+
+
+services:
+
+  ingestion-job:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: ingestion-job
+    hostname: ingestion-job
+
+    env_file:
+      - ./env/.env.ingestion
+
+
+    environment:
+      PIPELINE_STAGE: ingestion
+      SPARK_DRIVER_HOST: spark-test-ingestion
+
+    
+    volumes:
+
+      - ./src:/opt/spark-app/src
+      - ./configs:/opt/spark-app/configs
+
+    
+      - ./data/logs/:/opt/spark-app/data/logs
+
+
+    command: bash -c "python3 src/pipelines/ingestion/ingestion_pipeline.py; tail -f /dev/null"
+
+
+    networks:
+      lakehouse-net:
+        aliases:
+          - spark-test-ingestion
+
+
+networks:
+  lakehouse-net:
+    external: true
+    name: lakehouse-net

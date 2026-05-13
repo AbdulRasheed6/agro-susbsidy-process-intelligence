@@ -5,8 +5,14 @@ __pycache__/
 *.pyd
 *.so
 *.egg-info/
+.eggs/
 build/
 dist/
+
+# ENV secrets
+env/
+.env
+!.env.example
 
 Thumbs.db
 # Jupyter Notebook
@@ -16,17 +22,29 @@ data/logs/
 *.logs
 
 data/staging/
+data/minio-data/
 
 temp/
 # Data directories
 minio-data/
 spark-data/
+
 docker-data/
+*.jar
+*.parquet
+*.csv
+*.tsv
+*.json
+*.orc
 # Spark
 spark-warehouse/
+work/
 *.crc
 
 *.swp
 *.bak
-
+*.jar
+*.log
+*.bash
+*.log
 

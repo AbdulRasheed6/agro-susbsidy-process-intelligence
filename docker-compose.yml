@@ -3,15 +3,17 @@ services:
 
   minio:
     image: minio/minio:latest
+    env_file:
+     - ./env/.env.admin
     container_name: lakehouse-minio
     restart: always
     ports:
       - "${MINIO_API_PORT:-9000}:9000"   # API
       - "${MINIO_CONSOLE_PORT:-9001}:9001" # Console UI
 
-    environment:
-      MINIO_ROOT_USER: "${MINIO_ROOT_USER}"
-      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD}"
+    #environment:
+    #  MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+    #  MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
 
     volumes:
       - ./data/minio-data:/data # this indicates that any data uploaded to minio will be stored in the /data directory
@@ -20,56 +22,61 @@ services:
     networks:
       - lakehouse-net
 
-  # Spark + jupyter
-  spark:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: lakehouse-spark
+  spark-master:
+     build: .
+     container_name: spark-master
+     restart: unless-stopped
+
+     ports: 
+       - "7077:7077"
+       - "8081:8080" 
+
+     environment:
+        - SPARK_MASTER_HOST=spark-master
+        - SPARK_MASTER_PORT=7077
+        - SPARK_MASTER_WEBUI_PORT=8080
+        
+
+     command: >
+       /opt/spark/bin/spark-class
+       org.apache.spark.deploy.master.Master
+
+
+     networks:
+       - lakehouse-net
+
+
+
+  spark-worker:
+    build: .
+    container_name: spark-worker
     restart: unless-stopped
+
     depends_on:
-      - minio
+      - spark-master
+
     ports:
-      - "4040:4040"   #Spark UI
-      - "8888:8888"  #jupyter lab
+      - "8082:8081"
 
     environment:
-      #spark mode
-      SPARK_MODE: "local[*]"
+      - SPARK_WORKER_CORES=2
+      - SPARK_WORKER_MEMORY=2G
+      
+      - SPARK_DAEMON_MEMORY=1G
+      - SPARK_MASTER=spark://spark-master:7077
 
-      # Minio Connection
-      MINIO_ENDPOINT: "http://minio:9000"
+    command: >
+       /opt/spark/bin/spark-class
+       org.apache.spark.deploy.worker.Worker
+       spark://spark-master:7077
 
-      #Required for s3A
-      AWS_ACCESS_KEY_ID: "${MINIO_ROOT_USER}"
-      AWS_SECRET_ACCESS_KEY: "${MINIO_ROOT_PASSWORD}"
-
-
-    volumes:
-      # Application code
-      - ./src:/opt/spark-app/src
-
-      # local data areas
-      - ./data/staging:/opt/spark-app/data/staging
-      - ./data/logs:/opt/spark-app/data/logs
-      - ./data/spark-tmp:/tmp/spark
-
-      # Notebooks
-      - ./notebooks:/opt/spark-app/notebooks
-
-      # Temp folder
-      - ./temp:/temp/spark
-
+      
     networks:
       - lakehouse-net
 
-    command: >
-      bash -c "
-      jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root"
-    
-
 networks:
   lakehouse-net:
+    name: lakehouse-net
     driver: bridge
 
     
