@@ -11,3 +11,6 @@ s3fs
 findspark
 pyspark==3.5.0
 requests
+openpyxl
+beautifulsoup4
+lxml

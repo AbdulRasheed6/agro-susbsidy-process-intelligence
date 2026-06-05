@@ -100,7 +100,7 @@ for directory in [DATA_DIR, RAW_DIR, LOG_DIR]:
 def best_ip():
     try:
         s= socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(('8.8.8.8', 53))
+        s.connect(('8.8.8.8', 53))#
         ip = s.getsockname()[0]
         s.close()
         return ip

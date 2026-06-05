@@ -1,10 +1,8 @@
 from pyspark.sql import SparkSession
-import socket
-
 from src.utils.logger import get_logger
 import src.utils.config as config 
 
-import os
+
 print(f"DEBUG: Access Key is {config.MINIO_ACCESS_KEY[:3]} + ***") 
 print(f"DEBUG: ENDPOINT is {config.MINIO_ENDPOINT}")
 
@@ -33,8 +31,8 @@ def create_spark_session(app_name: str) -> SparkSession:
         .config("spark.sql.shuffle.partitions", config.SPARK_SHUFFLE_PARTITIONS)
         .config("spark.executor.instances", "1") # adjust based on resources
         .config("spark.executor.cores", "2")
-        .config("spark.executor.memory", "1g") # adjust based on resources
-        .config("spark.driver.memory", "1g") # adjust based on resources
+        #.config("spark.executor.memory", "2g") # adjust based on resources
+        #.config("spark.driver.memory", "2g") # adjust based on resources
 
          # hadoop S3A Configuration
       
@@ -44,15 +42,17 @@ def create_spark_session(app_name: str) -> SparkSession:
         .config("spark.hadoop.fs.s3a.path.style.access", "true")
         .config("spark.hadoop.fs.s3a.connection.ssl.enabled", str(config.MINIO_SECURE).lower())
         .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") # prevent class resolution
+        .config("spark.sql.caseSensitive", "false")
         .config("spark.hadoop.fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider")
         .config("spark.cores.max", "2")
         .config("spark.driver.extraJavaOptions", "-Djava.net.preferIPv4Stack=true")
         .config("spark.executor.extraJavaOptions", "-Djava.net.preferIPv4Stack=true")
         .config("spark.hadoop.fs.s3a.fast.upload", "true") #performance improvement
-        .config("spark.network.timeout", "600s")
+        .config("spark.sql.files.maxPartitionBytes", "67108864") #68MB partitions
+        .config("spark.network.timeout", "1200s")
         .config("spark.rpc.askTimeout", "600s")
-        .config("spark.executor.heartbeatInterval", "60s")
-        .config("spark.hadoop.fs.s3a.connection.timeout", "1000")
+        .config("spark.executor.heartbeatInterval", "120s")
+        .config("spark.hadoop.fs.s3a.connection.timeout", "600000")
         .config("spark.hadoop.fs.s3a.paging.maximum", "1000")
         
         .getOrCreate()

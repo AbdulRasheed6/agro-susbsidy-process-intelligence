@@ -8,6 +8,7 @@ Analysis and ML-driven optimization of the EU Agricultural Subsidy Process using
   a. docker compose up -d
   b. docker compose -f docker-compose.admin.yml
   c.  docker compose -f docker-compose.admin.yml run --rm admin-job python3 scripts/setup_minio.py
+  d. docker run --rm -it --network lakehouse-net -v ${PWD}:/work --entrypoint=/bin/sh minio/mc
 2. Create and set RBAC policy
    a. mc  alias set  local endpoint admin password
    b. mc admin policy create local ingestion-policy /work/configs/policies/ingestion-policy.json
@@ -24,4 +25,8 @@ Created policy `analytics-policy` successfully.
     a. docker compose up -d
     b. docker compose -f  docker-compose.test.yml up
 
-
+4 Download , stage and ingest:
+    a. docker compose -f docker-compose.ingestion.yml run --rm ingestion-job bash
+    b.  python3  src/pipelines/ingestion/download_and_stage.py
+    c.  python3  src/pipelines/ingestion/ingestion_pipeline.py
+    python3  src/pipelines/ingestion/ingestion_pipeline.py

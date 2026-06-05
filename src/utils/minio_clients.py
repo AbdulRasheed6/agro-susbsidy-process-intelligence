@@ -2,7 +2,7 @@ from minio import Minio
 from minio.error import S3Error
 from src.utils.logger import get_logger
 import json
-
+import os
 
 from src.utils.config import (
     MINIO_ENDPOINT,
@@ -42,16 +42,34 @@ class MinIOClient:
 
     # DATA OPERATIONS    
 
-    def upload_file(self, bucket_name:str, object_name:str, file_path:str):
-    
-       
+    def upload_file(self, bucket_name: str, object_name: str, file_path: str):
+        """
+        Upload local file to MinIO safely.
+        Uses fput_object for robust multipart uploads.
+        """
+
         try:
-            self.client.fput_object(bucket_name, object_name, file_path)
-            logger.info(f"Uploaded  {file_path} to {bucket_name}/{object_name}")
-        except S3Error as e:
+
+            # Ensure file fully flushed to disk
+            os.sync()
+
+            # File diagnostics
+            file_size = os.path.getsize(file_path)
+
+            logger.info(f"Uploading file: {file_path} "
+                f"({file_size / (1024 * 1024):.2f} MB)"
+            )
+
+            self.client.fput_object(bucket_name=bucket_name, object_name=object_name,file_path=file_path)
+
+            logger.info(f"Uploaded {file_path} "
+                f"to {bucket_name}/{object_name}"
+            )
+
+        except Exception as e:
+
             logger.error(f"Upload failed: {e}")
             raise
-    
 
     def list_objects(self, bucket_name:str, prefix:str=None, recursive:bool=True):
 
@@ -84,20 +102,23 @@ class MinIOClient:
             logger.error(f"Failed to download'{object_name}' from MinIO: {e}")
             raise
 
-    def list_object_names(self, bucket_name:str):
+    def list_object_names(self, bucket_name:str, prefix : str=None):
         """
         List names of objects inside a bucket
         """
 
         try:
             
-            objects=self.client.list_objects(bucket_name, recursive=True)
+            objects=self.client.list_objects(
+                bucket_name, 
+                prefix=prefix,
+                recursive=True)
 
             return [obj.object_name for obj in objects]
         
         except S3Error as e:
             logger.error(f"Error listing objects : {e}")
-            raise
+            return []
 
 
     def delete_object(self, bucket_name:str, object_name:str):

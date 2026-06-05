@@ -1,15 +1,14 @@
-
-
-
 services:
 
   ingestion-job:
     build:
       context: .
       dockerfile: Dockerfile
-
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     container_name: ingestion-job
-    hostname: ingestion-job
+    hostname: spark-test-ingestion
 
     env_file:
       - ./env/.env.ingestion
@@ -19,17 +18,21 @@ services:
       PIPELINE_STAGE: ingestion
       SPARK_DRIVER_HOST: spark-test-ingestion
 
+    ports:
+      - "34567:34567"
+      - "34568:34568"
+
     
     volumes:
 
       - ./src:/opt/spark-app/src
       - ./configs:/opt/spark-app/configs
-
+      - ./env:/opt/spark-app/env
     
       - ./data/logs/:/opt/spark-app/data/logs
 
 
-    command: bash -c "python3 src/pipelines/ingestion/ingestion_pipeline.py; tail -f /dev/null"
+    command:  tail -f /dev/null
 
 
     networks:

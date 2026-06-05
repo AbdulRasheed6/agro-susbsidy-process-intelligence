@@ -13,6 +13,12 @@ from configs.manifest import DATA_CATALOG
 
 logger= get_logger(__name__)
 
+SUPPORTED_EXTENSIOS= (
+    ".csv",
+    ".txt",
+    ".json",
+    ".parquet"
+)
 
 # File type heplers
 
@@ -32,12 +38,17 @@ def  read_with_spark(spark, s3_path: str, extension: str, delimiter: str = ","):
 
     logger.info(f"Reading {s3_path}")
 
-    if extension == ".csv":
+    if extension in [".csv", ".txt"]:
         return (
             spark.read
             .option("header", True)
-            .option("inferSchema", True)
-            .option("delimeter", delimiter)
+            .option("delimiter", delimiter)
+            .option("encoding", "ISO-8859-1")
+            .option("multiLine", False)
+            .option("mode", "PERMISSIVE")
+            .option("ignoreLeadingWhiteSpace", True)
+            .option("ignoreTrailingWhiteSpace", True)
+            .option("maxColumns", 10000)
             .csv(s3_path)
         )
     
@@ -62,20 +73,24 @@ def  read_with_spark(spark, s3_path: str, extension: str, delimiter: str = ","):
 def clean_columns(df):
 
     """
-    lowercase + replace spacces with underscore.
+    lowercase + replace spaces with underscore.
+    Tis function optimises the spark operation in order to prevent massive operation blow out siince spark operates on lazy  implementation
+    Spark sees  Read Csv -> single projection instead of creating several new dataframe object for every loop 
     """
 
-    for col_name in df.columns:
-        new_name = (
-            col_name.strip()
+    expressions= [
+        F.col(f"`{c}`").alias(
+           c.strip()
             .lower()
-            .replace(" ", "_")
+            .replace(" ", "_" )
             .replace("-", "_")
             .replace("/", "_")
         )
+        for c in df.columns
+    ]
 
-        df=  df.withColumnRenamed(col_name, new_name)
-    return df
+    
+    return df.select(*expressions)
     
 
 
@@ -94,10 +109,10 @@ def enrich(df, country:str, year:str):
 
 
 # Process one dataset
-def process_dataset(spark, country:str, year:str, layer:str, config:dict):
+def process_dataset(spark, country:str, year:str, layer:str, dataset_config:dict):
 
     """
-    layer: BRONZE, SILVER
+    layer: BRONZE
     raw -> bronze
     Idempotent by checking bronze completion state
     """
@@ -105,24 +120,36 @@ def process_dataset(spark, country:str, year:str, layer:str, config:dict):
     metadata= MetadataManager()
     minio= MinIOClient()
 
-    key= f"{country}_{year}"
+    # Bronze Dataset ID
+    bronze_dataset_id= f"{year}_{layer}"
 
-    record= metadata.get_record(country, f"{year}_{layer}")
-
+    # Get the Bronze Dataset ID record
+    record= (
+        metadata.get_record(country, bronze_dataset_id) or {}
+    )
+    # if it has been completed before skip 
     if record.get("status") == "completed":
-        logger.info(f"Skipping already processed dataset")
+        logger.info(f"Skipping already processed dataset:" f"{country} {bronze_dataset_id}")
         return
     
-    raw_prefix= f"{country}/{year}"
+    #Locate Raw files
+    landing_dataset_id= f"{year}_LANDING"
+    raw_prefix= f"{country}/{landing_dataset_id}"
 
     try:
+        #List objects in MinIO
         objects= minio.list_object_names(
              bucket_name=MINIO_RAW_BUCKET,
             prefix=raw_prefix)
-        files= [
-            obj for obj in objects
-            if obj.startswith(raw_prefix)
-        ]
+        files= []
+        
+        # Filter files that only comes from {year}_{Landing}
+        for obj in objects:
+            ext= detect_extensions(obj)
+
+            if ext in SUPPORTED_EXTENSIOS:
+                files.append(obj)
+    
 
         if not files:
             logger.warning(f"No raw files available for {country} {year}")
@@ -131,85 +158,85 @@ def process_dataset(spark, country:str, year:str, layer:str, config:dict):
         logger.info(f"{country} {year}: {len(files)} raw file(s) found")
 
 
-        frames= []
+        combined_df=None
 
         for obj in files:
+            logger.info(f"Processing object: {obj}")
             ext= detect_extensions(obj)
+
+            #Build s3 path
             s3_path= f"s3a://{MINIO_RAW_BUCKET}/{obj}"
+            df= read_with_spark(spark, s3_path, ext, dataset_config.get("delimiter", ";"))
 
-            df= read_with_spark(
-                spark=spark,
-                s3_path=s3_path,
-                extension=ext,
+            df= clean_columns(df)
 
-                delimeter= config.get("delimiter", ",")
+            # Enrich the data with columns metadata
+            df= enrich(df, country, year)
+
+            # Combone files
+            if combined_df is None:
+                combined_df= df
+            else:
+                combined_df= combined_df.unionByName(df, allowMissingColumns=True)
+
+
+        # Write to Bronze
+        if combined_df is not None:
+
+            bronze_path= (
+                f"s3a://{MINIO_BRONZE_BUCKET}/"
+                f"{country}/{bronze_dataset_id}/"
+            )
+            logger.info(f"Writting to bronze: {bronze_path}")
+            (
+                combined_df.write
+                .mode("overwrite")
+                .parquet(bronze_path)
             )
 
-            df =clean_columns(df)
-            frames.append(df)
-
-        # incase we are pulling data from multiple sources
-
-        #union all the files
-        if not frames:
-            logger.warning(f"No valid dataframe create for {country} {year}")
-            return
-        
-        df_final=frames[0]
-
-        for df_part in frames[1:]:
-            df_final= df_final.unionByName(
-                df_part, 
-                allowMissingColumns=True
+            logger.info(f"Written to bronze: {bronze_path}")
+            
+            #Mark Success
+            metadata.mark_processed(
+                country=country,
+                dataset_id=bronze_dataset_id,
+                file_hash="spark_write_complete",
+                files_uploaded=len(files)
             )
 
-
-        # enrich
-        df_final=enrich(df_final, country, year)
-
-        bronze_path= f"s3a://{MINIO_BRONZE_BUCKET}/{country}/{year}"
-
-        (
-            df_final.write
-            .mode("overwrite")
-            .parquet(bronze_path)
-        )
-
-        logger.info(f"Wrote to bronze: {bronze_path}")
-
-        metadata.mark_processed(
-            country=country,
-            year=f"{year}_BRONZE",
-            file_hash="spark_write_complete",
-            files_uploaded= 1
-        )
-
+    #Failure handling
     except Exception as e:
         logger.error(f"Bronze ingestion failed for {country} {year}: {e}")
         metadata.mark_failed(
             country=country,
-            year= f"{year}_BRONZE",
+            dataset_id= bronze_dataset_id,
             reason= str(e)
         )
 
 
 def main():
+
+
     logger.info("Starting raw -> bronze ingestion pipeline")
 
     spark=create_spark_session("bronze_ingestion")
+    """
+    High - Level Flow
+    Catalog --> Skip(France and Dutch) --> Raw Bucket --> process_dataset() --> spark Reads Raw Files --> Clean Columns --> Add Metadata Columns --> Union Files --> Write to Bronze parquet --> Update Metadata
+    """
 
     try:
         for country, config in DATA_CATALOG.items():
-            if config.get("engine") == "scraper":
+            if config.get("engine") == "scraper" and country.upper() != "UK":
                 logger.warning(f"Skipping scraper source: {country}")
                 continue
-            for year in config["datasets"].keys():
+            for year, dataset_config in config["datasets"].items():
                 process_dataset(
                     spark=spark,
                     country=country,
                     year=year,
                     layer="BRONZE",
-                    config=config
+                    dataset_config=dataset_config
                 )
 
         logger.info("Bronze ingestion completed")
