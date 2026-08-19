@@ -194,10 +194,11 @@ def process_dataset(country:str, year: str, dataset_config: dict, country_config
                 return
             
             # 2. hash check
-            file_hash= metadata.compute_hash(download_path)
+            file_hash= metadata.compute_fingerprint(download_path)
             
             landing_id= f"{year}_LANDING"
-            if metadata.is_processed(country, landing_id, file_hash):
+            dataset_id= f"{country.upper()}_{year}"
+            if metadata.is_processed(stage="LANDING", dataset_id=dataset_id, fingerprint=file_hash):
                 logger.info(f"Skipping (already processed)")
                 return
             
@@ -261,14 +262,26 @@ def process_dataset(country:str, year: str, dataset_config: dict, country_config
             # ONLY mark processed if everything went up
             
             metadata.mark_processed(
-                    country=country,
-                    dataset_id=landing_id,
-                    file_hash=file_hash,
-                    files_uploaded=uploaded_count
+                    stage= "LANDING",
+                    dataset_id=dataset_id,
+                    
+                    fingerprint=file_hash,
+                    metadata={
+                        "files_uploaded":uploaded_count
+                    }
                 )
     except Exception as e :
         landing_id= f"{year}_LANDING"
-        metadata.mark_failed(country=country, dataset_id=landing_id, reason=str(e))
+        dataset_id=f"{country.upper()}_{year}"
+        metadata.mark_failed(
+            stage= "LANDING", 
+            dataset_id=dataset_id,
+            reason= str(e),
+            metadata= {
+                "reason": str(e)
+                }
+        )
+         
         logger.error(f"{country} {year} failed: {e}")
         
 def main():

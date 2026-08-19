@@ -115,6 +115,8 @@ def process_dataset(spark, country:str, year:str, layer:str, dataset_config:dict
     layer: BRONZE
     raw -> bronze
     Idempotent by checking bronze completion state
+    BRONZE/SPAIN.json
+    SPAIN_2023
     """
 
     metadata= MetadataManager()
@@ -129,11 +131,11 @@ def process_dataset(spark, country:str, year:str, layer:str, dataset_config:dict
     )
     # if it has been completed before skip 
     if record.get("status") == "completed":
-        logger.info(f"Skipping already processed dataset:" f"{country} {bronze_dataset_id}")
+        logger.info(f"Skipping already processed dataset:" f"{country}_{bronze_dataset_id}")
         return
     
     #Locate Raw files
-    landing_dataset_id= f"{year}_LANDING"
+    landing_id= f"{year}_LANDING"
     raw_prefix= f"{country}/{landing_dataset_id}"
 
     try:
@@ -198,19 +200,27 @@ def process_dataset(spark, country:str, year:str, layer:str, dataset_config:dict
             
             #Mark Success
             metadata.mark_processed(
-                country=country,
-                dataset_id=bronze_dataset_id,
-                file_hash="spark_write_complete",
-                files_uploaded=len(files)
+                stage= layer,
+                dataset_id=f"{country.upper()}_{year}",
+                
+                fingerprint="spark_write_complete",
+                metadata= {
+                    "files_uploaded":len(files)
+                }
             )
 
     #Failure handling
     except Exception as e:
         logger.error(f"Bronze ingestion failed for {country} {year}: {e}")
         metadata.mark_failed(
-            country=country,
-            dataset_id= bronze_dataset_id,
+            stage=layer,
+            dataset_id= f"{country.upper()}_{year}",
+            
+            fingerprint="spark_write_failed",
             reason= str(e)
+            metadata= {
+                "reason": str(e)
+            }
         )
 
 

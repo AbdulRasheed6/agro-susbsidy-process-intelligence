@@ -29,4 +29,15 @@ Created policy `analytics-policy` successfully.
     a. docker compose -f docker-compose.ingestion.yml run --rm ingestion-job bash
     b.  python3  src/pipelines/ingestion/download_and_stage.py
     c.  python3  src/pipelines/ingestion/ingestion_pipeline.py
-    python3  src/pipelines/ingestion/ingestion_pipeline.py
+    
+
+5. Prepare experiment environment
+    a.  docker compose -f docker-compose.notebook.yml up -d
+    b.  hostname -I (pick any network IP address)
+    c.  docker logs notebook-job (get token from it)
+    c.  Then login with this (<IP address>:8899)
+    d.   Pick the token  from thes server url  and  add a password
+
+6. Proceed to the next phase (bronze - silver)
+   a. docker compose -f docker-compose.transform.yml run --rm transform-job bash
+   b. python3 src/pipelines/transformation/bronze_to_silver_transformer.py

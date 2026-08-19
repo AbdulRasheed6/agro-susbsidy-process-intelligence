@@ -136,6 +136,9 @@ MINIO_RAW_BUCKET = os.getenv("MINIO_RAW_BUCKET", "temp")
 MINIO_BRONZE_BUCKET = os.getenv("MINIO_BRONZE_BUCKET", "bronze")
 MINIO_SILVER_BUCKET = os.getenv("MINIO_SILVER_BUCKET", "silver")
 MINIO_GOLD_BUCKET = os.getenv("MINIO_GOLD_BUCKET", "gold")
+RAW_TO_BRONZE="raw_to_bronze"
+BRONZE_TO_SILVER="bronze_to_silver"
+SILVER_TO_GOLD="silver_to_gold"
 
 # =========================================================
 # 🔹 SPARK CONFIG

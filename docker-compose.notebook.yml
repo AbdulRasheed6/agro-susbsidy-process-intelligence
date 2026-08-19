@@ -1,0 +1,44 @@
+services:
+
+  notebook-job:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: notebook-job
+    hostname: spark-test-transform
+    
+    env_file:
+      - ./env/.env.transform
+
+    environment:
+      PIPELINE_STAGE: transform
+      SPARK_DRIVER_HOST: spark-test-transform
+
+
+    command: >
+      jupyter lab
+      --ip=0.0.0.0
+      --port=8888
+      --allow-root
+      --no-browser
+
+    ports:
+      - "8899:8888"
+
+    volumes:
+      - ./notebooks:/opt/spark-app/notebooks
+      - ./src:/opt/spark-app/src
+      - ./env/.env.transform:/opt/spark-app/env/.env.transform
+      - ./data/logs/:/opt/spark-app/data/logs
+
+    networks:
+      lakehouse-net:
+        aliases:
+          - spark-test-transform
+
+
+networks:
+  lakehouse-net:  
+    external: true
+    name: lakehouse-net

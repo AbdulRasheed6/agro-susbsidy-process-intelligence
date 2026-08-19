@@ -1,0 +1,47 @@
+services:
+
+  transform-job:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    container_name: transform-job
+    hostname: spark-test-transform
+
+    env_file:
+      - ./env/.env.transform
+
+
+    environment:
+      PIPELINE_STAGE: transform
+      SPARK_DRIVER_HOST: spark-test-transform
+
+    ports:
+      - "35567:35567"
+      - "35568:35568"
+
+    
+    volumes:
+
+      - ./src:/opt/spark-app/src
+      - ./configs:/opt/spark-app/configs
+      - ./env/.env.transform:/opt/spark-app/env/.env.transform
+
+      - ./data/logs/:/opt/spark-app/data/logs
+
+
+    command:  tail -f /dev/null
+
+
+    networks:
+      lakehouse-net:
+        aliases:
+          - spark-test-transform
+
+
+networks:
+  lakehouse-net:
+    external: true
+    name: lakehouse-net

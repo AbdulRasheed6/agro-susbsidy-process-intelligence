@@ -28,9 +28,11 @@ def create_spark_session(app_name: str) -> SparkSession:
         .config("spark.driver.bindAddress", "0.0.0.0")
         .config("spark.driver.port", config.SPARK_DRIVER_PORT)
         .config("spark.driver.blockManager.port", config.SPARK_BLOCK_MANAGER_PORT)
-        .config("spark.sql.shuffle.partitions", config.SPARK_SHUFFLE_PARTITIONS)
+        .config("spark.sql.shuffle.partitions", "50")
         .config("spark.executor.instances", "1") # adjust based on resources
         .config("spark.executor.cores", "2")
+        .config("spark.sql.adaptive.enabled", "true")
+        .config("spark.sql.adaptive.coalescePartitions.enabled", "true")
         #.config("spark.executor.memory", "2g") # adjust based on resources
         #.config("spark.driver.memory", "2g") # adjust based on resources
 
@@ -47,8 +49,8 @@ def create_spark_session(app_name: str) -> SparkSession:
         .config("spark.cores.max", "2")
         .config("spark.driver.extraJavaOptions", "-Djava.net.preferIPv4Stack=true")
         .config("spark.executor.extraJavaOptions", "-Djava.net.preferIPv4Stack=true")
-        .config("spark.hadoop.fs.s3a.fast.upload", "true") #performance improvement
-        .config("spark.sql.files.maxPartitionBytes", "67108864") #68MB partitions
+        .config("spark.hadoop.fs.s3a.fast.upload", "true") 
+        .config("spark.sql.files.maxPartitionBytes", "64m") #64MB partitions
         .config("spark.network.timeout", "1200s")
         .config("spark.rpc.askTimeout", "600s")
         .config("spark.executor.heartbeatInterval", "120s")
