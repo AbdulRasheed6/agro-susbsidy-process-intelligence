@@ -47,4 +47,6 @@ work/
 *.log
 *.bash
 *.log
+*.Trash-0
+notebooks/ireland24_cleaning-Copy1.ipynb
 
